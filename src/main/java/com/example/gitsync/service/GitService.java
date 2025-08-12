@@ -136,14 +136,14 @@ private List<GitCommit> fetchCommitsViaHttp(String repoUrl, String username, Str
      * @param password 密碼 (可為 null)
      * @return RevCommit 列表
      */
-    public List<RevCommit> fetchAllCommits(String repoUrl, String username, String password) throws Exception {
+    public List<RevCommit> fetchAllCommits(String repoUrl, String username, String password, String branch) throws Exception {
         File localPath = Files.createTempDirectory("TempGitRepo").toFile();
         List<RevCommit> commitList = new ArrayList<>();
 
         // 建立 clone 指令
         CloneCommand cloneCommand = Git.cloneRepository()
                 .setURI(repoUrl)
-                
+                .setBranch(branch)
                 .setDirectory(localPath);
 
         // 根據 URL 類型設定驗證

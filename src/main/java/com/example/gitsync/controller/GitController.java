@@ -30,11 +30,12 @@ public class GitController {
     public ResponseEntity<String> syncGitCommits(
             @RequestParam String repoUrl,
             @RequestParam String username,
-            @RequestParam String password) {
+            @RequestParam String password,
+                                                     @RequestParam String branch) {
         try {
             List<GitCommit> commits = gitService.fetchCommits(repoUrl, username, password);
             gitCommitRepository.saveAll(commits);
-            List<RevCommit> rcommits = gitService.fetchAllCommits(repoUrl, username, password);
+            List<RevCommit> rcommits = gitService.fetchAllCommits(repoUrl, username, password, branch);
             gitService.syncCommitsToDatabase(rcommits);
             return ResponseEntity.ok("Git commits synced successfully!");
         } catch (Exception e) {
@@ -46,12 +47,14 @@ public class GitController {
     @GetMapping(value = "/report", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> getWorkHourReport(@RequestParam String repoUrl,
                                                      @RequestParam String username,
-                                                     @RequestParam String password) {
+                                                     @RequestParam String password,
+                                                     @RequestParam String branch
+                                                     ) {
         try {
             System.out.println(repoUrl);
             System.out.println(username);
             System.out.println(password);
-            List<RevCommit> commits = gitService.fetchAllCommits(repoUrl, username, password);
+            List<RevCommit> commits = gitService.fetchAllCommits(repoUrl, username, password, branch);
             String reportHtml = htmlReportGenerator.generate(commits);
             return ResponseEntity.ok(reportHtml);
         } catch (Exception e) {
