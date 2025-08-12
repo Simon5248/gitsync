@@ -16,7 +16,7 @@ public class WorkHourCalculator {
             LocalTime.of(6, 0),
             LocalTime.of(14, 0),
             LocalTime.of(18, 0),
-            LocalTime.of(22, 0)
+            LocalTime.of(20, 0)
     );
 
     /**
@@ -43,7 +43,7 @@ public class WorkHourCalculator {
     private LocalDateTime findNearestStartDateTime(LocalDateTime commitDateTime) {
         LocalTime commitTime = commitDateTime.toLocalTime();
 
-        // 從最後一個開始時間 (22:00) 往前找
+        // 從最後一個開始時間 (20:00) 往前找
         for (int i = START_TIMES.size() - 1; i >= 0; i--) {
             LocalTime startTime = START_TIMES.get(i);
             if (!commitTime.isBefore(startTime)) {
@@ -53,7 +53,7 @@ public class WorkHourCalculator {
         }
 
         // 如果執行到這裡，表示 commit 時間在 00:00 到 06:00 之間
-        // 這種情況下，開始時間是前一天的最後一個時段 (22:00)
+        // 這種情況下，開始時間是前一天的最後一個時段 (20:00)
         return LocalDateTime.of(commitDateTime.toLocalDate().minusDays(1), START_TIMES.get(START_TIMES.size() - 1));
     }
     
@@ -68,7 +68,7 @@ public class WorkHourCalculator {
                 return startTime;
             }
         }
-        // 屬於前一天 22:00 的區段
+        // 屬於前一天 20:00 的區段
         return START_TIMES.get(START_TIMES.size() - 1);
     }
 }

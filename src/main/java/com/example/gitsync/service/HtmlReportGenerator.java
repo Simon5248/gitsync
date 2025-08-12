@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -47,21 +48,23 @@ public class HtmlReportGenerator {
             String slot06 = generateSlotHtml(slots.get(LocalTime.of(6, 0)));
             String slot14 = generateSlotHtml(slots.get(LocalTime.of(14, 0)));
             String slot18 = generateSlotHtml(slots.get(LocalTime.of(18, 0)));
-            String slot22 = generateSlotHtml(slots.get(LocalTime.of(22, 0)));
+            String slot20 = generateSlotHtml(slots.get(LocalTime.of(20, 0)));
             
             // 計算每日總工時
             dailyTotalHours += calculateSlotHours(slots.get(LocalTime.of(6, 0)));
             dailyTotalHours += calculateSlotHours(slots.get(LocalTime.of(14, 0)));
             dailyTotalHours += calculateSlotHours(slots.get(LocalTime.of(18, 0)));
-            dailyTotalHours += calculateSlotHours(slots.get(LocalTime.of(22, 0)));
+            dailyTotalHours += calculateSlotHours(slots.get(LocalTime.of(20, 0)));
 
             // 產生一天的 row
             html.append("<tr>")
-                .append("<td>").append(date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))).append("</td>")
+                .append("<td>").append(date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")))
+                .append(" (").append(date.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.TAIWAN)).append(")")
+                .append("</td>")
                 .append("<td>").append(slot06).append("</td>")
                 .append("<td>").append(slot14).append("</td>")
                 .append("<td>").append(slot18).append("</td>")
-                .append("<td>").append(slot22).append("</td>")
+                .append("<td>").append(slot20).append("</td>")
                 .append("<td class='total-hours'>").append(String.format("%.2f", dailyTotalHours)).append(" 小時</td>")
                 .append("</tr>");
         }
@@ -95,7 +98,9 @@ public class HtmlReportGenerator {
         content.append("<div class='hours'>工時: ").append(String.format("%.2f", hours)).append(" 小時</div>");
         content.append("<ul class='commit-list'>");
         for (RevCommit commit : slotCommits) {
-            content.append("<li>").append(commit.getShortMessage()).append("</li>");
+            LocalDateTime commitTime = LocalDateTime.ofInstant(commit.getAuthorIdent().getWhen().toInstant(), ZoneId.systemDefault());
+            String formattedTime = commitTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            content.append("<li>").append(commit.getShortMessage()).append(" (提交時間: ").append(formattedTime).append(")</li>");
         }
         content.append("</ul>");
         return content.toString();
@@ -114,7 +119,7 @@ public class HtmlReportGenerator {
             .append(".commit-list { margin: 0; padding-left: 20px; color: #555; }")
             .append(".total-hours { font-weight: bold; background-color: #e9ecef; color: #d9534f; }")
             .append("</style></head><body><h1>Git 提交工時報告</h1><table>")
-            .append("<tr><th>日期</th><th>06:00 時段</th><th>14:00 時段</th><th>18:00 時段</th><th>22:00 時段</th><th>當日總計</th></tr>");
+            .append("<tr><th>日期</th><th>06:00 時段</th><th>14:00 時段</th><th>18:00 時段</th><th>20:00 時段</th><th>當日總計</th></tr>");
     }
 
     private void appendHtmlFooter(StringBuilder html) {
