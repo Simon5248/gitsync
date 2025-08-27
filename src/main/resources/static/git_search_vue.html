@@ -6,6 +6,7 @@
     
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f7f6; margin: 0; }
         .container { max-width: 1100px; margin: 40px auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); padding: 32px 36px 24px 36px; }
@@ -74,6 +75,7 @@
                 <span v-else>查詢</span>
             </button>
             <button type="button" @click="goChart" style="background:#28a745;color:#fff;">產生圖表</button>
+            <button type="button" @click="exportExcel" style="margin-left:8px;">匯出 Excel</button>
             <button type="button" class="menu-btn" @click="goMenu">回選單</button>
         </div>
     </div>
@@ -192,6 +194,22 @@ new Vue({
         },
         goMenu() {
             window.location.href = 'menu.html';
+        },
+        exportExcel() {
+            // 先複製一份資料，並處理 commits 欄位
+            const exportRows = this.filteredGrouped.map(row => ({
+                branch: row.branch,
+                author: row.author,
+                date: row.date,
+                // 將 commits 轉成字串（如 commit hash 或訊息），避免 undefined
+                commits: Array.isArray(row.commits) 
+                    ? row.commits.map(log => log.commitHash ? log.commitHash : JSON.stringify(log)).join(', ')
+                    : ''
+            }));
+            const ws = XLSX.utils.json_to_sheet(exportRows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "查詢結果");
+            XLSX.writeFile(wb, "git_commits.xlsx");
         }
     },
     mounted() {
