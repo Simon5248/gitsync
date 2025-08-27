@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Git Commits Report</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f4f7f6;
+            margin: 0;
+        }
+        .container {
+            max-width: 620px;
+            margin: 40px auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            padding: 32px 36px 24px 36px;
+        }
+        .form-divider {
+            border-bottom: 1px solid #e0e0e0;
+            margin: 18px 0 24px 0;
+        }
+        .branch-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .branch-input { flex: 1; }
+        .branch-del-btn { background: #ffc107; color: #333; border: none; border-radius: 4px; padding: 2px 8px; font-size: 15px; cursor: pointer; }
+        .branch-del-btn:hover { background: #ff9800; }
+        .action-btns { display: flex; gap: 12px; margin-top: 18px; justify-content: flex-end; }
+        .main-btn { background: #007bff; color: #fff; }
+        .main-btn:hover { background: #0056b3; }
+        .icon-btn { display: flex; align-items: center; gap: 6px; }
+        .loading { color: #007bff; font-size: 15px; margin-right: 12px; }
+            .action-btns button {
+                min-width: 140px;
+                padding: 9px 0;
+                font-size: 16px;
+                border-radius: 6px;
+            }
+        @media (max-width: 700px) {
+            .container { max-width: 98vw; padding: 12px; }
+            .action-btns { flex-direction: column; gap: 8px; }
+        }
+        h2 {
+            color: #007bff;
+            text-align: center;
+            margin-bottom: 28px;
+        }
+        .form-group {
+            margin-bottom: 18px;
+        }
+        label {
+            display: block;
+            margin-bottom: 7px;
+            color: #333;
+            font-weight: 500;
+        }
+        input[type=text], input[type=password], input[type=datetime-local] {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 15px;
+            background: #f9fafb;
+            transition: border-color 0.2s;
+        }
+        input[type=text]:focus, input[type=password]:focus, input[type=datetime-local]:focus {
+            border-color: #007bff;
+            outline: none;
+            background: #fff;
+        }
+        .branch-input {
+            margin-bottom: 6px;
+        }
+        button[type="button"] {
+            background: #e9ecef;
+            color: #007bff;
+            border: none;
+            border-radius: 6px;
+            padding: 7px 16px;
+            font-size: 15px;
+            margin-right: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button[type="button"]:hover {
+            background: #d0d7de;
+        }
+        button[type="submit"] {
+            background: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 9px 24px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,123,255,0.08);
+            transition: background 0.2s;
+        }
+        button[type="submit"]:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Git Commits Report 下載</h2>
+        <form method="post" action="/git-report/download" id="reportForm" onsubmit="return checkRequired();">
+            <div class="form-group">
+                <label for="repoUrl">Repo URL</label>
+                <input type="text" id="repoUrl" name="repoUrl" required placeholder="請輸入 Git 倉庫網址">
+            </div>
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="可選，若需驗證請填寫">
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="可選，若需驗證請填寫">
+            </div>
+            <div class="form-divider"></div>
+            <div class="form-group">
+                <label for="effdate">開始時間</label>
+                <input type="datetime-local" id="effdate" name="effdate" required placeholder="請選擇開始時間">
+            </div>
+            <div class="form-group">
+                <label for="expdate">結束時間</label>
+                <input type="datetime-local" id="expdate" name="expdate" required placeholder="請選擇結束時間">
+            </div>
+            <div class="form-divider"></div>
+            <div class="form-group" id="branch-group">
+                <label>Branch (可多筆)</label>
+                <div id="branch-list">
+                    <div class="branch-row">
+                        <input type="text" name="branches" class="branch-input" placeholder="請輸入分支名稱">
+                        <button type="button" class="branch-del-btn" onclick="removeBranchInput(this)" title="刪除分支欄位">✕</button>
+                    </div>
+                </div>
+                <button type="button" onclick="addBranchInput()" style="margin-top:6px;">＋新增分支欄位</button>
+            </div>
+            <div class="action-btns">
+                <span id="loadingMsg" class="loading" style="display:none;">
+                    <span id="syncSpinner" style="display:none;vertical-align:middle;">
+                        <svg width="22" height="22" viewBox="0 0 50 50" style="margin-right:6px;"><circle cx="25" cy="25" r="20" fill="none" stroke="#007bff" stroke-width="5" stroke-linecap="round" stroke-dasharray="31.4 31.4" transform="rotate(-90 25 25)"><animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="0.8s" repeatCount="indefinite"/></circle></svg>
+                    </span>
+                    處理中，請稍候...
+                </span>
+                <button type="submit" class="main-btn icon-btn"><span>📥</span>下載 Excel</button>
+                <button type="button" onclick="postCtbcReport()" class="icon-btn" style="background:#28a745;color:#fff;"><span>📝</span>顯示 CTBC 報告</button>
+                <button type="button" onclick="syncToDb()" class="icon-btn" style="background:#ffc107;color:#333;"><span>🔄</span>同步資料</button>
+                    <button type="button" onclick="window.location.href='menu.html'" class="icon-btn" style="background:#e9ecef;color:#007bff;"><span>🏠</span>回主選單</button>
+            </div>
+        </form>
+        <script>
+        function checkRequired() {
+            var repoUrl = document.getElementById('repoUrl').value.trim();
+            var effdate = document.getElementById('effdate').value.trim();
+            var expdate = document.getElementById('expdate').value.trim();
+            if (!repoUrl || !effdate || !expdate) {
+                alert('請填寫必填欄位！');
+                return false;
+            }
+            document.getElementById('loadingMsg').style.display = '';
+            return true;
+        }
+        function addBranchInput() {
+            var list = document.getElementById('branch-list');
+            var row = document.createElement('div');
+            row.className = 'branch-row';
+            var input = document.createElement('input');
+            input.type = 'text';
+            input.name = 'branches';
+            input.className = 'branch-input';
+            input.placeholder = '請輸入分支名稱';
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'branch-del-btn';
+            btn.title = '刪除分支欄位';
+            btn.innerText = '✕';
+            btn.onclick = function() { removeBranchInput(btn); };
+            row.appendChild(input);
+            row.appendChild(btn);
+            list.appendChild(row);
+        }
+        function removeBranchInput(btn) {
+            var row = btn.parentNode;
+            row.parentNode.removeChild(row);
+        }
+        function getBranches() {
+            var inputs = document.querySelectorAll('.branch-input');
+            var branches = [];
+            inputs.forEach(function(input) {
+                if (input.value.trim() !== '') {
+                    branches.push(input.value.trim());
+                }
+            });
+            return branches;
+        }
+        function syncToDb() {
+            document.getElementById('loadingMsg').style.display = '';
+            document.getElementById('syncSpinner').style.display = '';
+            var repoUrl = document.getElementById('repoUrl').value;
+            var username = document.getElementById('username').value;
+            var password = document.getElementById('password').value;
+            var effdate = document.getElementById('effdate').value;
+            var expdate = document.getElementById('expdate').value;
+            var branches = getBranches();
+            var form = document.createElement('form');
+            form.method = 'post';
+            form.action = '/git-report/sync';
+            var addInput = function(name, value) {
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = name;
+                input.value = value;
+                form.appendChild(input);
+            };
+            addInput('repoUrl', repoUrl);
+            addInput('username', username);
+            addInput('password', password);
+            addInput('effdate', effdate);
+            addInput('expdate', expdate);
+            branches.forEach(function(b) {
+                addInput('branches', b);
+            });
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+            setTimeout(function(){
+                document.getElementById('loadingMsg').style.display='none';
+                document.getElementById('syncSpinner').style.display='none';
+            },1200);
+        }
+        function postCtbcReport() {
+            document.getElementById('loadingMsg').style.display = '';
+            var repoUrl = document.getElementById('repoUrl').value;
+            var username = document.getElementById('username').value;
+            var password = document.getElementById('password').value;
+            var effdate = document.getElementById('effdate').value;
+            var expdate = document.getElementById('expdate').value;
+            var branches = getBranches();
+            var form = document.createElement('form');
+            form.method = 'post';
+            form.action = '/api/git/ctbc/report';
+            form.target = '_blank';
+            var addInput = function(name, value) {
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = name;
+                input.value = value;
+                form.appendChild(input);
+            };
+            addInput('repoUrl', repoUrl);
+            addInput('username', username);
+            addInput('password', password);
+            addInput('effdate', effdate);
+            addInput('expdate', expdate);
+            branches.forEach(function(b) {
+                addInput('branches', b);
+            });
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+            setTimeout(function(){document.getElementById('loadingMsg').style.display='none';},1200);
+        }
+        document.getElementById('reportForm').addEventListener('keydown', function(e){
+            if(e.key==='Enter'){
+                var tag = e.target.tagName.toLowerCase();
+                if(tag==='input'){
+                    e.preventDefault();
+                    document.querySelector('.main-btn').click();
+                }
+            }
+        });
+        </script>
+    </div>
+    <script>
+        function syncToDb() {
+            var repoUrl = document.getElementById('repoUrl').value;
+            var username = document.getElementById('username').value;
+            var password = document.getElementById('password').value;
+            var effdate = document.getElementById('effdate').value;
+            var expdate = document.getElementById('expdate').value;
+            var branches = getBranches();
+            var form = document.createElement('form');
+            form.method = 'post';
+            form.action = '/git-report/sync';
+            var addInput = function(name, value) {
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = name;
+                input.value = value;
+                form.appendChild(input);
+            };
+            addInput('repoUrl', repoUrl);
+            addInput('username', username);
+            addInput('password', password);
+            addInput('effdate', effdate);
+            addInput('expdate', expdate);
+            branches.forEach(function(b) {
+                addInput('branches', b);
+            });
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        }
+        function getBranches() {
+            var inputs = document.querySelectorAll('.branch-input');
+            var branches = [];
+            inputs.forEach(function(input) {
+                if (input.value.trim() !== '') {
+                    branches.push(input.value.trim());
+                }
+            });
+            return branches;
+        }
+
+        function postCtbcReport() {
+            var repoUrl = document.getElementById('repoUrl').value;
+            var username = document.getElementById('username').value;
+            var password = document.getElementById('password').value;
+            var effdate = document.getElementById('effdate').value;
+            var expdate = document.getElementById('expdate').value;
+            var branches = getBranches();
+            var form = document.createElement('form');
+            form.method = 'post';
+            form.action = '/api/git/ctbc/report';
+            form.target = '_blank';
+            var addInput = function(name, value) {
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = name;
+                input.value = value;
+                form.appendChild(input);
+            };
+            addInput('repoUrl', repoUrl);
+            addInput('username', username);
+            addInput('password', password);
+            addInput('effdate', effdate);
+            addInput('expdate', expdate);
+            branches.forEach(function(b) {
+                addInput('branches', b);
+            });
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        }
+        function addBranchInput() {
+            var group = document.getElementById('branch-group');
+            var input = document.createElement('input');
+            input.type = 'text';
+            input.name = 'branches';
+            input.className = 'branch-input';
+            input.placeholder = '請輸入分支名稱';
+            group.appendChild(input);
+        }
+    </script>
+</body>
+</html>

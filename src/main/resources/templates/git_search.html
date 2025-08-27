@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Git Commit 查詢</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f7f6; margin: 0; }
+        .container { max-width: 900px; margin: 40px auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); padding: 32px 36px 24px 36px; }
+        h2 { color: #007bff; text-align: center; margin-bottom: 28px; }
+        .search-group { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
+        .search-group label { font-weight: 500; color: #333; margin-right: 8px; }
+        .search-group input { padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 15px; background: #f9fafb; }
+        .search-group input:focus { border-color: #007bff; background: #fff; }
+        button { background: #007bff; color: #fff; border: none; border-radius: 6px; padding: 9px 24px; font-size: 16px; font-weight: 500; cursor: pointer; box-shadow: 0 2px 8px rgba(0,123,255,0.08); transition: background 0.2s; }
+        button:hover { background: #0056b3; }
+        table { width: 100%; border-collapse: collapse; margin-top: 24px; background: #fff; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top; }
+        th { background-color: #007bff; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Git Commit 查詢</h2>
+        <form method="get" action="/git-report/search">
+            <div class="search-group">
+                <label for="commitHash">Commit Hash</label>
+                <input type="text" id="commitHash" name="commitHash">
+                <label for="authorName">作者</label>
+                <input type="text" id="authorName" name="authorName">
+                <label for="branchName">Branch</label>
+                <input type="text" id="branchName" name="branchName">
+                <label for="message">Message</label>
+                <input type="text" id="message" name="message">
+                <label for="dateFrom">起始日期</label>
+                <input type="date" id="dateFrom" name="dateFrom">
+                <label for="dateTo">結束日期</label>
+                <input type="date" id="dateTo" name="dateTo">
+            </div>
+            <button type="submit">查詢</button>
+        </form>
+        <div th:if="${workLogs != null}">
+            <table>
+                <tr>
+                    <th>Branch</th>
+                    <th>Commit Hash</th>
+                    <th>作者</th>
+                    <th>日期</th>
+                    <th>Message</th>
+                    <th>工時</th>
+                </tr>
+                <tr th:each="log : ${workLogs}">
+                    <td th:text="${log.branchName}"></td>
+                    <td th:text="${log.commitHash}"></td>
+                    <td th:text="${log.authorName}"></td>
+                    <td th:text="${#dates.format(log.commitDateTime, 'yyyy-MM-dd HH:mm:ss')}"></td>
+                    <td th:text="${log.message}"></td>
+                    <td th:text="${log.workingHours}"></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

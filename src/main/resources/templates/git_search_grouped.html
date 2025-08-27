@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Git Commit 分組查詢</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f7f6; margin: 0; }
+        .container { max-width: 1000px; margin: 40px auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); padding: 32px 36px 24px 36px; }
+        h2 { color: #007bff; text-align: center; margin-bottom: 28px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 24px; background: #fff; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top; }
+        th { background-color: #007bff; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        .total-days { font-weight: bold; background-color: #e9ecef; color: #d9534f; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Git Commit 分組查詢結果</h2>
+        <table>
+            <tr>
+                <th>分支</th>
+                <th>commit</th>
+                <th>作者</th>
+                <th>日期</th>
+                <th>人天</th>
+            </tr>
+            <th:block th:with="totalDays=0">
+            <th:block th:each="branchEntry : ${groupMap}">
+                <th:block th:each="authorEntry : ${branchEntry.value}">
+                    <th:block th:each="dateEntry : ${authorEntry.value}">
+                        <tr>
+                            <td th:text="${branchEntry.key}"></td>
+                            <td>
+                                <th:block th:each="log : ${dateEntry.value}">
+                                    <span th:text="${log.message + ' [' + log.commitHash.substring(0,7) + ']'}"></span><br/>
+                                </th:block>
+                            </td>
+                            <td th:text="${authorEntry.key}"></td>
+                            <td th:text="${dateEntry.key}"></td>
+                            <td>1</td>
+                        </tr>
+                        <th:block th:with="${totalDays}=${totalDays+1}"></th:block>
+                    </th:block>
+                </th:block>
+            </th:block>
+            <tr>
+                <td colspan="4" class="total-days">總人天</td>
+                <td class="total-days" th:text="${totalDays}"></td>
+            </tr>
+            </th:block>
+        </table>
+    </div>
+</body>
+</html>

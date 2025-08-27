@@ -19,9 +19,19 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 @Service
 public class GitService {
+    /**
+     * 將 WorkLog 寫入資料庫（支援 branchName 欄位）
+     */
+    public void syncWorkLogsToDatabase(List<com.example.gitsync.model.WorkLog> workLogs) {
+        if (workLogs != null && !workLogs.isEmpty()) {
+            workLogRepository.saveAll(workLogs);
+        }
+    }
     private final WorkLogRepository workLogRepository;
     private final WorkHourCalculator workHourCalculator;
 
@@ -211,5 +221,77 @@ private List<GitCommit> fetchCommitsViaHttp(String repoUrl, String username, Str
         if (!workLogs.isEmpty()) {
             workLogRepository.saveAll(workLogs);
         }
+    }
+    /**
+     * 取得指定時間區間的所有 commit（支援帳號密碼，不指定分支，預設 master）
+     * @param repoUrl 倉庫 URL
+     * @param username 使用者名稱 (可為 null)
+     * @param password 密碼 (可為 null)
+     * @param effdate 起始時間（LocalDateTime）
+     * @param expdate 結束時間（LocalDateTime）
+     * @return 時間區間內的 RevCommit 列表
+     */
+    public Map<String, List<RevCommit>> fetchCommitsByDateRange(String repoUrl, String username, String password, LocalDateTime effdate, LocalDateTime expdate, List<String> in_branches) throws Exception {
+        File localPath = Files.createTempDirectory("TempGitRepo").toFile();
+        Map<String, List<RevCommit>> branchCommits = new HashMap<>();
+        Git git = null;
+        try {
+            CloneCommand cloneCommand = Git.cloneRepository()
+                    .setURI(repoUrl)
+                    .setDirectory(localPath);
+            if (username != null && password != null) {
+                cloneCommand.setCredentialsProvider(new UsernamePasswordCredentialsProvider(username, password));
+            }
+            git = cloneCommand.call();
+            List<org.eclipse.jgit.lib.Ref> branches = git.branchList().setListMode(org.eclipse.jgit.api.ListBranchCommand.ListMode.ALL).call();
+            for (org.eclipse.jgit.lib.Ref branchRef : branches) {
+                String branchName = branchRef.getName();
+                // 支援 in_branches 傳入不帶 'refs/remotes/' 前綴的分支名稱
+                String simpleBranchName = branchName.startsWith("refs/remotes/") ? branchName.substring("refs/remotes/".length()) : branchName;
+                if (in_branches != null && !in_branches.isEmpty()) {
+                    boolean match = false;
+                    for (String b : in_branches) {
+                        if (b.equals(branchName) || b.equals(simpleBranchName)) {
+                            match = true;
+                            break;
+                        }
+                    }
+                    if (!match) {
+                        continue;
+                    }
+                }
+                // 排除 origin/sit 與 origin/master
+                if (!branchName.startsWith("refs/remotes") || branchName.endsWith("origin/sit") || branchName.endsWith("origin/master")|| branchName.endsWith("origin/preproduction")) {
+                    continue;
+                }
+                Iterable<RevCommit> commits = git.log().add(branchRef.getObjectId()).call();
+                List<RevCommit> commitList = new ArrayList<>();
+                    for (RevCommit commit : commits) {
+                        LocalDateTime commitDate = commit.getAuthorIdent().getWhen().toInstant()
+                                .atZone(ZoneId.systemDefault())
+                                .toLocalDateTime();
+                        // 排除 merge commit
+                        String msg = commit.getFullMessage();
+                        if (msg != null && msg.startsWith("Merge branch")) {
+                            continue;
+                        }
+                        if ((commitDate.isEqual(effdate) || commitDate.isAfter(effdate)) &&
+                            (commitDate.isEqual(expdate) || commitDate.isBefore(expdate))) {
+                            commitList.add(commit);
+                        }
+                }
+                if (!commitList.isEmpty()) {
+                    branchCommits.put(branchName, commitList);
+                }
+            }
+        } finally {
+            if (git != null) {
+                git.close();
+            }
+            if (localPath.exists()) {
+                localPath.delete();
+            }
+        }
+        return branchCommits;
     }
 }

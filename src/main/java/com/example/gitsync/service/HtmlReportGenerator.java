@@ -73,6 +73,60 @@ public class HtmlReportGenerator {
         return html.toString();
     }
 
+    public String generateCtbcReport(Map<String, List<RevCommit>> branchCommitsMap) {
+        // 以分支+作者+日期分組，每組一列，commit 欄顯示所有 commit hash
+        StringBuilder html = new StringBuilder();
+        html.append("<!DOCTYPE html><html lang='zh-Hant'><head><meta charset='UTF-8'><title>CTBC 人天報告</title>");
+        html.append("<style>")
+            .append("body { font-family: 'Segoe UI', sans-serif; margin: 20px; background-color: #f4f7f6; }")
+            .append("h1 { color: #333; }")
+            .append("table { width: 100%; border-collapse: collapse; box-shadow: 0 2px 15px rgba(0,0,0,0.1); background-color: white; }")
+            .append("th, td { border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top; }")
+            .append("th { background-color: #007bff; color: white; }")
+            .append("tr:nth-child(even) { background-color: #f2f2f2; }")
+            .append(".total-days { font-weight: bold; background-color: #e9ecef; color: #d9534f; }")
+            .append("</style></head><body><h1>CTBC 人天報告</h1><table>");
+        html.append("<tr><th>分支</th><th>commit</th><th>作者</th><th>日期</th><th>人天</th></tr>");
+
+        int totalDays = 0;
+        // 分組：分支+作者+日期
+        Map<String, Map<String, Map<LocalDate, List<RevCommit>>>> groupMap = new HashMap<>();
+        for (Map.Entry<String, List<RevCommit>> entry : branchCommitsMap.entrySet()) {
+            String branch = entry.getKey();
+            for (RevCommit commit : entry.getValue()) {
+                String author = commit.getAuthorIdent().getName();
+                LocalDate date = LocalDateTime.ofInstant(commit.getAuthorIdent().getWhen().toInstant(), ZoneId.systemDefault()).toLocalDate();
+                groupMap.computeIfAbsent(branch, k -> new HashMap<>())
+                        .computeIfAbsent(author, k -> new HashMap<>())
+                        .computeIfAbsent(date, k -> new ArrayList<>())
+                        .add(commit);
+            }
+        }
+        for (String branch : groupMap.keySet()) {
+            Map<String, Map<LocalDate, List<RevCommit>>> authorMap = groupMap.get(branch);
+            for (String author : authorMap.keySet()) {
+                Map<LocalDate, List<RevCommit>> dateMap = authorMap.get(author);
+                for (LocalDate date : dateMap.keySet()) {
+                    List<RevCommit> commits = dateMap.get(date);
+                    String commitStr = commits.stream()
+                        .map(c -> c.getShortMessage() + " [" + c.getName().substring(0, 7) + "]")
+                        .collect(Collectors.joining("</BR> "));
+                    html.append("<tr>")
+                        .append("<td>").append(branch).append("</td>")
+                        .append("<td>").append(commitStr).append("</td>")
+                        .append("<td>").append(author).append("</td>")
+                        .append("<td>").append(date).append("</td>")
+                        .append("<td>1</td>")
+                        .append("</tr>");
+                    totalDays++;
+                }
+            }
+        }
+        html.append("<tr><td colspan='4' class='total-days'>總人天</td><td class='total-days'>").append(totalDays).append("</td></tr>");
+        html.append("</table></body></html>");
+        return html.toString();
+    }    
+
     private double calculateSlotHours(List<RevCommit> slotCommits) {
         if (slotCommits == null || slotCommits.isEmpty()) {
             return 0;

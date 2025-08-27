@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>Git Commit Vue 查詢</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f7f6; margin: 0; }
+        .container { max-width: 1100px; margin: 40px auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); padding: 32px 36px 24px 36px; }
+        h2 { color: #007bff; text-align: center; margin-bottom: 28px; }
+    .search-group { display: flex; flex-wrap: wrap; gap: 0 24px; margin-bottom: 24px; border-bottom: 1px solid #e0e0e0; padding-bottom: 12px; }
+        .search-pair { display: flex; align-items: center; margin-bottom: 12px; flex: 1 1 400px; min-width: 260px; }
+        .search-pair label { font-weight: 500; color: #333; margin-right: 8px; min-width: 90px; }
+    .search-pair input { padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 15px; background: #f9fafb; width: 100%; }
+    .search-pair input::placeholder { color: #b0b0b0; font-size: 14px; }
+        .search-pair input:focus { border-color: #007bff; background: #fff; }
+        .search-btns { display: flex; gap: 16px; margin-bottom: 12px; }
+        .menu-btn { background: #e9ecef; color: #007bff; border: none; border-radius: 6px; padding: 9px 24px; font-size: 16px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+        .menu-btn:hover { background: #d0d7de; }
+        button { background: #007bff; color: #fff; border: none; border-radius: 6px; padding: 9px 24px; font-size: 16px; font-weight: 500; cursor: pointer; box-shadow: 0 2px 8px rgba(0,123,255,0.08); transition: background 0.2s; }
+        button:hover { background: #0056b3; }
+    table { width: 100%; border-collapse: collapse; margin-top: 24px; background: #fff; }
+    td.commit-cell { word-break: break-all; white-space: pre-line; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top; }
+        th { background-color: #007bff; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        .total-days { font-weight: bold; background-color: #e9ecef; color: #d9534f; }
+        @media (max-width: 900px) {
+            .container { max-width: 98vw; padding: 12px; }
+            .search-pair { min-width: 160px; }
+            th, td { padding: 6px; }
+        }
+    </style>
+</head>
+<body>
+<div id="app" class="container">
+    <h2>Git Commit Vue 查詢</h2>
+    <div style="margin-bottom:24px;">
+        <button v-for="tab in chartTabs" :key="tab" @click="activeTab=tab" :style="{marginRight:'8px',background:activeTab===tab?'#007bff':'#e9ecef',color:activeTab===tab?'#fff':'#007bff',border:'none',borderRadius:'6px',padding:'7px 18px',fontWeight:'500',fontSize:'16px',cursor:'pointer'}">{{ tab }}</button>
+    </div>
+    <div v-show="activeTab==='每日人力分布報表'" style="margin-bottom:32px;">
+        <canvas id="heatmapChart" height="320"></canvas>
+    </div>
+    <div v-show="activeTab==='每月工時消耗統計'" style="margin-bottom:32px;">
+        <canvas id="monthlyChart" height="320"></canvas>
+    </div>
+    <div v-show="activeTab==='團隊效率儀表板'" style="margin-bottom:32px;">
+        <canvas id="teamDashboardChart" height="320"></canvas>
+    </div>
+    <button type="button" @click="searchPanelOpen = !searchPanelOpen" style="margin-bottom:12px;background:#e9ecef;color:#007bff;">{{ searchPanelOpen ? '收合查詢條件' : '展開查詢條件' }}</button>
+    <transition name="fade">
+    <div class="search-group" v-show="searchPanelOpen">
+        <div class="search-pair">
+            <label>Commit Hash</label>
+            <input v-model="query.commitHash" placeholder="請輸入 commit hash (可部分)" @keyup.enter="search">
+        </div>
+        <div class="search-pair">
+            <label>作者</label>
+            <input v-model="query.authorName" placeholder="請輸入作者 (可部分)" @keyup.enter="search">
+        </div>
+        <div class="search-pair">
+            <label>Branch</label>
+            <input v-model="query.branchName" placeholder="請輸入分支 (可部分)" @keyup.enter="search">
+        </div>
+        <div class="search-pair">
+            <label>Message</label>
+            <input v-model="query.message" placeholder="請輸入 commit 訊息 (可部分)" @keyup.enter="search">
+        </div>
+        <div class="search-pair">
+            <label>工時</label>
+            <input v-model="query.workingHours" type="number" step="0.01" placeholder="請輸入工時 (精確值)" @keyup.enter="search">
+        </div>
+        <div class="search-pair" style="display:flex;align-items:center;gap:16px;">
+            <label>起始日期</label>
+            <input v-model="query.dateFrom" type="date" style="max-width:180px;" @keyup.enter="search">
+            <label>結束日期</label>
+            <input v-model="query.dateTo" type="date" style="max-width:180px;" @keyup.enter="search">
+        </div>
+        <div style="flex-basis:100%;height:0;"></div>
+        <div class="search-btns" style="width:100%;justify-content:flex-end;margin-top:8px;">
+            <button type="button" @click="search" :disabled="loading">
+                <span v-if="loading">查詢中...</span>
+                <span v-else>查詢</span>
+            </button>
+            <button type="button" class="menu-btn" @click="goMenu">回選單</button>
+        </div>
+    </div>
+    </transition>
+    <div v-if="grouped.length">
+        <div style="margin-bottom:12px;color:#555;font-size:15px;">
+            <b>目前查詢條件：</b>
+            <span v-if="Object.values(query).some(v=>v)">
+                <span v-if="query.commitHash">Commit Hash: {{query.commitHash}}；</span>
+                <span v-if="query.authorName">作者: {{query.authorName}}；</span>
+                <span v-if="query.branchName">分支: {{query.branchName}}；</span>
+                <span v-if="query.message">訊息: {{query.message}}；</span>
+                <span v-if="query.workingHours">工時: {{query.workingHours}}；</span>
+                <span v-if="query.dateFrom">起始日期: {{query.dateFrom}}；</span>
+                <span v-if="query.dateTo">結束日期: {{query.dateTo}}；</span>
+            </span>
+            <span v-else>全部</span>
+        </div>
+        <table>
+            <tr>
+                <th>分支</th>
+                <th>commit</th>
+                <th>作者</th>
+                <th>日期</th>
+                <th>人天</th>
+            </tr>
+            <tr v-for="row in filteredGrouped" :key="row.branch + row.author + row.date">
+                <td>{{ row.branch }}</td>
+                <td class="commit-cell">
+                    <span v-for="log in row.commits" :key="log.commitHash">
+                        {{ log.message }} [{{ log.commitHash.substring(0,7) }}]
+                    </span>
+                </td>
+                <td>{{ row.author }}</td>
+                <td>{{ row.date }}</td>
+                <td>1</td>
+            </tr>
+            <tr>
+                <td colspan="4" class="total-days">總人天</td>
+                <td class="total-days">{{ filteredGrouped.length }}</td>
+            </tr>
+        </table>
+    </div>
+    <div v-else>
+        <div style="text-align:center;color:#888;margin-top:32px;">
+            <svg width="48" height="48" fill="none" viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" stroke="#b0b0b0" stroke-width="2" fill="#f4f7f6"/><text x="24" y="30" text-anchor="middle" font-size="18" fill="#b0b0b0">😶</text></svg>
+            <div style="margin-top:8px;font-size:17px;">查無資料，請調整查詢條件</div>
+        </div>
+    </div>
+</div>
+<script>
+new Vue({    
+    el: '#app',
+    data: {
+        query: {
+            commitHash: '',
+            authorName: '',
+            branchName: '',
+            message: '',
+            workingHours: '',
+            dateFrom: '',
+            dateTo: ''
+        },
+        grouped: [],
+        loading: false,
+        searchPanelOpen: true,
+        chartTabs: ['每日人力分布報表','每月工時消耗統計','團隊效率儀表板'],
+        activeTab: '每日人力分布報表',
+        chartInstances: {}
+    },
+    computed: {
+        filteredGrouped() {
+            // ...existing code...
+            return this.grouped.filter(row => {
+                let ok = true;
+                if (this.query.authorName && row.author.toLowerCase().indexOf(this.query.authorName.toLowerCase()) === -1) ok = false;
+                if (this.query.branchName && row.branch.toLowerCase().indexOf(this.query.branchName.toLowerCase()) === -1) ok = false;
+                if (this.query.message && !row.commits.some(log => log.message && log.message.toLowerCase().indexOf(this.query.message.toLowerCase()) !== -1)) ok = false;
+                if (this.query.commitHash && !row.commits.some(log => log.commitHash && log.commitHash.toLowerCase().indexOf(this.query.commitHash.toLowerCase()) !== -1)) ok = false;
+                if (this.query.workingHours && !row.commits.some(log => log.workingHours == this.query.workingHours)) ok = false;
+                return ok;
+            });
+        }
+    },
+    methods: {
+        search() {
+            this.loading = true;
+            let params = {};
+            Object.keys(this.query).forEach(k => {
+                if (this.query[k]) params[k] = this.query[k];
+            });
+            axios.get('/api/worklog/search', { params }).then(res => {
+                let arr = [];
+                let groupMap = res.data;
+                for (let branch in groupMap) {
+                    let authorMap = groupMap[branch];
+                    for (let author in authorMap) {
+                        let dateMap = authorMap[author];
+                        for (let date in dateMap) {
+                            arr.push({
+                                branch,
+                                author,
+                                date,
+                                commits: dateMap[date]
+                            });
+                        }
+                    }
+                }
+                this.grouped = arr;
+                this.loading = false;
+                this.renderCharts();
+            }).catch(()=>{this.loading=false;});
+        },
+        goMenu() {
+            window.location.href = 'menu.html';
+        },
+        renderCharts() {
+            // 預留：根據 this.grouped 資料渲染三個圖表
+            // 1. 每日人力分布報表（熱力圖）
+            // 2. 每月工時消耗統計
+            // 3. 團隊效率儀表板
+            // 可根據 activeTab 決定要渲染哪個圖表
+            // 目前僅建立空圖表，後續可依資料結構補充
+            if (this.chartInstances.heatmapChart) this.chartInstances.heatmapChart.destroy();
+            if (this.chartInstances.monthlyChart) this.chartInstances.monthlyChart.destroy();
+            if (this.chartInstances.teamDashboardChart) this.chartInstances.teamDashboardChart.destroy();
+            // 熱力圖範例
+            const ctx1 = document.getElementById('heatmapChart').getContext('2d');
+            this.chartInstances.heatmapChart = new Chart(ctx1, {
+                type: 'matrix',
+                data: { datasets: [] },
+                options: { plugins: { legend: { display: false } } }
+            });
+            // 月統計範例
+            const ctx2 = document.getElementById('monthlyChart').getContext('2d');
+            this.chartInstances.monthlyChart = new Chart(ctx2, {
+                type: 'bar',
+                data: { labels: [], datasets: [] },
+                options: { plugins: { legend: { display: true } } }
+            });
+            // 儀表板範例
+            const ctx3 = document.getElementById('teamDashboardChart').getContext('2d');
+            this.chartInstances.teamDashboardChart = new Chart(ctx3, {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: { plugins: { legend: { display: true } } }
+            });
+        }
+    },
+    mounted() {
+        this.renderCharts();
+    },
+    watch: {
+        activeTab() {
+            this.renderCharts();
+        }
+    }
+});
+</script>
+</body>
+</html>
