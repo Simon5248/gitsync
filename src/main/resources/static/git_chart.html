@@ -213,7 +213,7 @@ function createHeatmapTable() {
     `;
 }
 
-// 3. 每月工時消耗統計（以月份分組，作者為系列）
+// 3. 每月工作天數統計（以月份分組，作者為系列）
 const monthSet = new Set();
 chartData.forEach(row => monthSet.add(row.date.slice(0,7)));
 const monthList = Array.from(monthSet).sort();
@@ -228,13 +228,15 @@ const monthlySeries = authors.map((user, index) => {
         'rgba(199,199,199,0.7)',
         'rgba(83,102,255,0.7)'
     ];
-    
+    // 計算每月工作天數（有 commit 的日期數）
     return {
         label: user,
         data: monthList.map(month => {
-            // 該作者該月的 commit 數
-            return chartData.filter(r => r.author === user && r.date.startsWith(month))
-                           .reduce((sum,r)=>sum+r.commits.length,0);
+            // 該作者該月所有 commit 日期
+            const days = chartData.filter(r => r.author === user && r.date.startsWith(month))
+                                .map(r => r.date);
+            // 以 Set 去重，得到工作天數
+            return new Set(days).size;
         }),
         backgroundColor: colors[index % colors.length]
     };
@@ -262,7 +264,7 @@ new Chart(ctxMonthly, {
                 stacked: false
             },
             y: { 
-                title: { display: true, text: 'Commit 數量' }, 
+                title: { display: true, text: '工作天數' }, 
                 beginAtZero: true,
                 stacked: false
             }
