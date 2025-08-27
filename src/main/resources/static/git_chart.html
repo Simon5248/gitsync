@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>Git Commit 圖表分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f7f6; margin: 0; }
+        .container { max-width: 1100px; margin: 40px auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); padding: 32px 36px 24px 36px; }
+        h2 { color: #007bff; text-align: center; margin-bottom: 28px; }
+        
+        /* 熱力圖表格樣式 */
+        .heatmap-table {
+            border-collapse: collapse;
+            font-size: 12px;
+            width: 100%;
+            margin: 20px 0;
+        }
+        .heatmap-table th, .heatmap-table td {
+            border: 1px solid #fff;
+            padding: 4px 8px;
+            text-align: center;
+        }
+        .date-header {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            min-width: 30px;
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .user-label {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            text-align: left;
+            min-width: 80px;
+        }
+        .heat-cell {
+            min-width: 30px;
+            min-height: 25px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .heat-cell:hover {
+            border: 2px solid #007bff;
+            transform: scale(1.1);
+        }
+        .legend {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+        .legend-item {
+            margin: 0 5px;
+            display: flex;
+            align-items: center;
+        }
+        .legend-color {
+            width: 20px;
+            height: 15px;
+            margin-right: 5px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>Git Commit 圖表分析</h2>
+    <div style="margin-bottom:24px;">
+        <button onclick="showTab('author')" id="tab-author" style="background:#007bff;color:#fff;border:none;border-radius:6px;padding:7px 18px;font-weight:500;font-size:16px;cursor:pointer;margin-right:8px;">作者提交量</button>
+        <button onclick="showTab('daily')" id="tab-daily" style="background:#e9ecef;color:#007bff;border:none;border-radius:6px;padding:7px 18px;font-weight:500;font-size:16px;cursor:pointer;margin-right:8px;">每日人力分布</button>
+        <button onclick="showTab('monthly')" id="tab-monthly" style="background:#e9ecef;color:#007bff;border:none;border-radius:6px;padding:7px 18px;font-weight:500;font-size:16px;cursor:pointer;">每月工時統計</button>
+    </div>
+    <div id="chart-author">
+        <canvas id="commitChart" height="380"></canvas>
+    </div>
+    <div id="chart-daily" style="display:none;">
+        <div id="dailyHeatmap"></div>
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #eee;"></div>
+                <span>0 次提交</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: rgba(40,167,69,0.3);"></div>
+                <span>1-2 次</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: rgba(40,167,69,0.6);"></div>
+                <span>3-5 次</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: rgba(40,167,69,0.9);"></div>
+                <span>6+ 次</span>
+            </div>
+        </div>
+    </div>
+    <div id="chart-monthly" style="display:none;">
+        <canvas id="monthlyChart" height="380"></canvas>
+    </div>
+</div>
+<script>
+// 取得 localStorage 的資料
+let chartData = [];
+try {
+    chartData = JSON.parse(localStorage.getItem('gitChartData')) || [];
+    console.log('載入的資料:', chartData);
+} catch(e) {
+    console.error('載入資料失敗:', e);
+    // 如果沒有資料，創建一些測試資料
+    chartData = [
+        {author: 'cc001', date: '2025-08-01', commits: ['commit1', 'commit2']},
+        {author: 'cc002', date: '2025-08-01', commits: ['commit3']},
+        {author: 'cc001', date: '2025-08-02', commits: ['commit4', 'commit5', 'commit6']},
+        {author: 'CP035', date: '2025-08-02', commits: ['commit7']},
+        {author: 'cc002', date: '2025-08-03', commits: ['commit8', 'commit9']},
+    ];
+}
+
+// 1. 作者提交量 bar chart
+const authorMap = {};
+chartData.forEach(row => {
+    if (!authorMap[row.author]) authorMap[row.author] = 0;
+    authorMap[row.author] += row.commits.length;
+});
+const authors = Object.keys(authorMap);
+const commitCounts = authors.map(a => authorMap[a]);
+const ctxAuthor = document.getElementById('commitChart').getContext('2d');
+new Chart(ctxAuthor, {
+    type: 'bar',
+    data: {
+        labels: authors,
+        datasets: [{
+            label: 'Commit 數量',
+            data: commitCounts,
+            backgroundColor: 'rgba(0,123,255,0.7)'
+        }]
+    },
+    options: {
+        plugins: { legend: { display: true } },
+        scales: {
+            x: { title: { display: true, text: '作者' } },
+            y: { title: { display: true, text: 'Commit 數量' }, beginAtZero: true }
+        }
+    }
+});
+
+// 2. 每日人力分布 - 使用 HTML 表格熱力圖
+function createHeatmapTable() {
+    const dateSet = new Set();
+    chartData.forEach(row => dateSet.add(row.date));
+    const dateList = Array.from(dateSet).sort();
+    const userList = authors;
+    
+    console.log('日期列表:', dateList);
+    console.log('用戶列表:', userList);
+    
+    const container = document.getElementById('dailyHeatmap');
+    
+    // 創建表格HTML
+    let tableHTML = '<table class="heatmap-table">';
+    
+    // 表頭
+    tableHTML += '<thead><tr><th style="background-color: #f8f9fa;">人員 / 日期</th>';
+    dateList.forEach(date => {
+        tableHTML += `<th class="date-header">${date.substring(5)}</th>`;
+    });
+    tableHTML += '</tr></thead>';
+    
+    // 表身
+    tableHTML += '<tbody>';
+    userList.forEach(user => {
+        tableHTML += `<tr><td class="user-label">${user}</td>`;
+        dateList.forEach(date => {
+            const found = chartData.find(r => r.author === user && r.date === date);
+            const count = found ? found.commits.length : 0;
+            
+            // 根據提交次數決定背景顏色深度
+            let bgColor = '#eee';
+            let textColor = '#666';
+            if (count > 0) {
+                const intensity = Math.min(0.15 + (count * 0.15), 1);
+                bgColor = `rgba(40,167,69,${intensity})`;
+                textColor = count > 4 ? '#fff' : '#000';
+            }
+            
+            tableHTML += `<td class="heat-cell" 
+                         style="background-color: ${bgColor}; color: ${textColor};" 
+                         title="${user} - ${date}: ${count} 次提交">
+                         ${count || ''}</td>`;
+        });
+        tableHTML += '</tr>';
+    });
+    tableHTML += '</tbody></table>';
+    
+    container.innerHTML = tableHTML;
+    
+    // 統計信息
+    const totalCommits = chartData.reduce((sum, row) => sum + row.commits.length, 0);
+    const activeDays = dateList.length;
+    const activeUsers = userList.length;
+    
+    container.innerHTML += `
+        <div style="margin-top: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 6px; font-size: 14px;">
+            <strong>統計摘要：</strong> 
+            總共 ${totalCommits} 次提交 | 
+            ${activeUsers} 位開發者 | 
+            ${activeDays} 個活躍天數 | 
+            平均每日 ${(totalCommits/activeDays).toFixed(1)} 次提交
+        </div>
+    `;
+}
+
+// 3. 每月工時消耗統計（以月份分組，作者為系列）
+const monthSet = new Set();
+chartData.forEach(row => monthSet.add(row.date.slice(0,7)));
+const monthList = Array.from(monthSet).sort();
+const monthlySeries = authors.map((user, index) => {
+    const colors = [
+        'rgba(255,99,132,0.7)',
+        'rgba(54,162,235,0.7)',
+        'rgba(255,206,86,0.7)',
+        'rgba(75,192,192,0.7)',
+        'rgba(153,102,255,0.7)',
+        'rgba(255,159,64,0.7)',
+        'rgba(199,199,199,0.7)',
+        'rgba(83,102,255,0.7)'
+    ];
+    
+    return {
+        label: user,
+        data: monthList.map(month => {
+            // 該作者該月的 commit 數
+            return chartData.filter(r => r.author === user && r.date.startsWith(month))
+                           .reduce((sum,r)=>sum+r.commits.length,0);
+        }),
+        backgroundColor: colors[index % colors.length]
+    };
+});
+
+const ctxMonthly = document.getElementById('monthlyChart').getContext('2d');
+new Chart(ctxMonthly, {
+    type: 'bar',
+    data: {
+        labels: monthList,
+        datasets: monthlySeries
+    },
+    options: {
+        plugins: { 
+            legend: { display: true },
+            tooltip: {
+                mode: 'index',
+                intersect: false,
+            }
+        },
+        responsive: true,
+        scales: {
+            x: { 
+                title: { display: true, text: '月份' },
+                stacked: false
+            },
+            y: { 
+                title: { display: true, text: 'Commit 數量' }, 
+                beginAtZero: true,
+                stacked: false
+            }
+        }
+    }
+});
+
+// tab 切換
+function showTab(tab) {
+    // 隱藏所有圖表
+    document.getElementById('chart-author').style.display = 'none';
+    document.getElementById('chart-daily').style.display = 'none';
+    document.getElementById('chart-monthly').style.display = 'none';
+    
+    // 顯示選中的圖表
+    document.getElementById('chart-' + tab).style.display = 'block';
+    
+    // 更新按鈕樣式
+    const tabs = ['author', 'daily', 'monthly'];
+    tabs.forEach(t => {
+        const btn = document.getElementById('tab-' + t);
+        if (t === tab) {
+            btn.style.background = '#007bff';
+            btn.style.color = '#fff';
+        } else {
+            btn.style.background = '#e9ecef';
+            btn.style.color = '#007bff';
+        }
+    });
+    
+    // 如果切換到每日分布，創建熱力圖
+    if (tab === 'daily') {
+        createHeatmapTable();
+    }
+}
+
+// 預設顯示作者提交量
+showTab('author');
+</script>
+</body>
+</html>
