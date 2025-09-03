@@ -40,8 +40,8 @@ public class GitSyncController {
                         .atZone(java.time.ZoneId.systemDefault())
                         .toLocalDateTime();
                 workLog.setCommitHash(commit.getName());
-                workLog.setAuthorName(commit.getAuthorIdent().getName());
-                workLog.setMessage(commit.getShortMessage());
+                workLog.setAuthorName(commit.getAuthorIdent().getName().toUpperCase());
+                workLog.setMessage(commit.getShortMessage().toUpperCase());
                 workLog.setCommitDateTime(commitDateTime);
                 workLog.setBranchName(branchName);
                 workLog.setGitUrl(repoUrl); // 新增 gitUrl 欄位

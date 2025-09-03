@@ -189,7 +189,6 @@ new Vue({
                 }
                 this.grouped = arr;
                 this.loading = false;
-                this.renderCharts();
             }).catch(()=>{this.loading=false;});
         },
         goMenu() {
@@ -202,8 +201,12 @@ new Vue({
                 author: row.author,
                 date: row.date,
                 // 將 commits 轉成字串（如 commit hash 或訊息），避免 undefined
-                commits: Array.isArray(row.commits) 
-                    ? row.commits.map(log => log.commitHash ? log.commitHash : JSON.stringify(log)).join(', ')
+                commits: Array.isArray(row.commits)
+                    ? row.commits.map(log => {
+                        const hash = log.commitHash ? log.commitHash.substring(0,10) : '';
+                        const msg = log.message || '';
+                        return `[${hash}]+${msg}`;
+                    }).join(', ')
                     : ''
             }));
             const ws = XLSX.utils.json_to_sheet(exportRows);
@@ -212,14 +215,7 @@ new Vue({
             XLSX.writeFile(wb, "git_commits.xlsx");
         }
     },
-    mounted() {
-        this.renderCharts();
-    },
-    watch: {
-        activeTab() {
-            this.renderCharts();
-        }
-    }
+    // 已移除 mounted/renderCharts 及 watch:activeTab，查詢頁無 Chart.js 動態繪圖需求
 });
 </script>
 </body>

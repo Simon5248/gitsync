@@ -1,3 +1,9 @@
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 package com.example.gitsync.service;
 
 import org.eclipse.jgit.api.CloneCommand;
@@ -24,6 +30,45 @@ import java.util.HashMap;
 
 @Service
 public class GitService {
+    /**
+     * 透過 GitLab API 查詢 commit（支援 token、日期篩選）
+     * @param apiUrl 例如 https://gitlab.com/api/v4/projects/{project_id}/repository/commits
+     * @param privateToken GitLab Personal Access Token
+     * @param since 起始日期（yyyy-MM-dd'T'HH:mm:ss'Z'）
+     * @param until 結束日期（yyyy-MM-dd'T'HH:mm:ss'Z'）
+     * @return GitCommit 清單
+     */
+    public List<GitCommit> fetchCommitsViaGitLabApi(String apiUrl, String privateToken, String since, String until) throws Exception {
+        List<GitCommit> commits = new ArrayList<>();
+        String urlStr = apiUrl + "?since=" + since + "&until=" + until + "&per_page=100";
+        URL url = new URL(urlStr);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+        conn.setRequestProperty("PRIVATE-TOKEN", privateToken);
+        conn.setRequestProperty("Accept", "application/json");
+        int respCode = conn.getResponseCode();
+        if (respCode != 200) {
+            throw new RuntimeException("GitLab API 回應錯誤: " + respCode);
+        }
+        BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            sb.append(line);
+        }
+        reader.close();
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode arr = mapper.readTree(sb.toString());
+        for (JsonNode node : arr) {
+            GitCommit commit = new GitCommit();
+            commit.setCommitId(node.get("id").asText());
+            commit.setAuthor(node.get("author_name").asText());
+            commit.setMessage(node.get("message").asText());
+            commit.setCommitDate(LocalDateTime.parse(node.get("committed_date").asText().substring(0,19)));
+            commits.add(commit);
+        }
+        return commits;
+    }
     /**
      * 將 WorkLog 寫入資料庫（支援 branchName 欄位）
      */
@@ -294,4 +339,7 @@ private List<GitCommit> fetchCommitsViaHttp(String repoUrl, String username, Str
         }
         return branchCommits;
     }
+
+
+
 }
